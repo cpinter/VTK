@@ -421,7 +421,7 @@ void vtkOpenVRRenderWindow::UpdateHMDMatrixPose()
       pos[1] = tdPose.mDeviceToAbsoluteTracking.m[1][3];
       pos[2] = tdPose.mDeviceToAbsoluteTracking.m[2][3];
 
-      double distance = this->PhysicalScale;
+      double physicalScale = this->PhysicalScale;
       double *trans = this->PhysicalTranslation;
 
       // convert position to world coordinates
@@ -432,7 +432,7 @@ void vtkOpenVRRenderWindow::UpdateHMDMatrixPose()
       // now adjust for scale and translation
       for (int i = 0; i < 3; i++)
       {
-        pos[i] = npos[i]*distance - trans[i];
+        pos[i] = npos[i]*physicalScale - trans[i];
       }
 
       // convert axes to world coordinates
@@ -449,9 +449,9 @@ void vtkOpenVRRenderWindow::UpdateHMDMatrixPose()
 
       cam->SetPosition(pos);
       cam->SetFocalPoint(
-        pos[0] + fdop[0]*distance,
-        pos[1] + fdop[1]*distance,
-        pos[2] + fdop[2]*distance);
+        pos[0] + fdop[0]*physicalScale,
+        pos[1] + fdop[1]*physicalScale,
+        pos[2] + fdop[2]*physicalScale);
       cam->SetViewUp(fvup);
       ren->UpdateLightsGeometryToFollowCamera();
     }
