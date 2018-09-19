@@ -291,6 +291,8 @@ void vtkInteractorStyle3D::SetScale(vtkCamera *camera, double newScale)
   newPos[1] = hmd[1]*newScale - trans[1];
   newPos[2] = hmd[2]*newScale - trans[2];
 
+  // Note: New camera properties are overridden by virtual reality render
+  // window if head-mounted display is tracked
   camera->SetFocalPoint(
     newPos[0] + dop[0]*newScale,
     newPos[1] + dop[1]*newScale,
