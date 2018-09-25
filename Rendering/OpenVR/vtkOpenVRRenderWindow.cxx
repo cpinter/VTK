@@ -797,7 +797,11 @@ void vtkOpenVRRenderWindow::SetPhysicalToWorldMatrix(vtkMatrix4x4* matrix)
   vtkNew<vtkTransform> hmdToWorldTransform;
   hmdToWorldTransform->SetMatrix(matrix);
 
-  hmdToWorldTransform->GetPosition(this->PhysicalTranslation);
+  double translation[3] = {0.0};
+  hmdToWorldTransform->GetPosition(translation);
+  this->PhysicalTranslation[0] = (-1.0) * translation[0];
+  this->PhysicalTranslation[1] = (-1.0) * translation[1];
+  this->PhysicalTranslation[2] = (-1.0) * translation[2];
 
   double scale[3] = {0.0};
   hmdToWorldTransform->GetScale(scale);
@@ -835,6 +839,6 @@ void vtkOpenVRRenderWindow::GetPhysicalToWorldMatrix(vtkMatrix4x4* physicalToWor
     physicalToWorldMatrix->SetElement(row, 0, physicalX_NonscaledWorld[row]*this->PhysicalScale);
     physicalToWorldMatrix->SetElement(row, 1, physicalY_NonscaledWorld[row]*this->PhysicalScale);
     physicalToWorldMatrix->SetElement(row, 2, physicalZ_NonscaledWorld[row]*this->PhysicalScale);
-    physicalToWorldMatrix->SetElement(row, 3, this->PhysicalTranslation[row]);
+    physicalToWorldMatrix->SetElement(row, 3, -this->PhysicalTranslation[row]);
   }
 }
