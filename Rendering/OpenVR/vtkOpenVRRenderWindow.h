@@ -58,6 +58,11 @@ class vtkTransform;
 class VTKRENDERINGOPENVR_EXPORT vtkOpenVRRenderWindow : public vtkOpenGLRenderWindow
 {
 public:
+  enum
+    {
+    PhysicalToWorldMatrixModified = vtkCommand::UserEvent + 200
+    };
+
   static vtkOpenVRRenderWindow *New();
   vtkTypeMacro(vtkOpenVRRenderWindow,vtkOpenGLRenderWindow);
   void PrintSelf(ostream& os, vtkIndent indent);
@@ -147,20 +152,23 @@ public:
    * some cases users may not want the Y axis to be up
    * and these methods allow them to control it.
    */
-  vtkSetVector3Macro(PhysicalViewDirection, double);
-  vtkSetVector3Macro(PhysicalViewUp, double);
+  virtual void SetPhysicalViewDirection(double,double,double);
+  virtual void SetPhysicalViewDirection(double[3]);
   vtkGetVector3Macro(PhysicalViewDirection, double);
+  virtual void SetPhysicalViewUp(double,double,double);
+  virtual void SetPhysicalViewUp(double[3]);
   vtkGetVector3Macro(PhysicalViewUp, double);
-  vtkSetVector3Macro(PhysicalTranslation, double);
+  virtual void SetPhysicalTranslation(double,double,double);
+  virtual void SetPhysicalTranslation(double[3]);
   vtkGetVector3Macro(PhysicalTranslation, double);
-  vtkSetMacro(PhysicalScale, double);
+  virtual void SetPhysicalScale(double);
   vtkGetMacro(PhysicalScale, double);
   //@}
 
   /**
   * Set physical to world transform matrix. Members calculated and set from the matrix:
   * \sa PhysicalViewDirection, \sa PhysicalViewUp, \sa PhysicalTranslation, \sa PhysicalScale
-  * The x axis scale is used for \sa PhysicalScale 
+  * The x axis scale is used for \sa PhysicalScale
   */
   void SetPhysicalToWorldMatrix(vtkMatrix4x4* matrix);
   /**
@@ -361,9 +369,13 @@ protected:
 
   // used in computing the pose
   vtkTransform *HMDTransform;
+  /// -Z axis of the Physical to World matrix
   double PhysicalViewDirection[3];
+  /// Y axis of the Physical to World matrix
   double PhysicalViewUp[3];
+  /// Inverse of the translation component of the Physical to World matrix, in mm
   double PhysicalTranslation[3];
+  /// Scale of the Physical to World matrix
   double PhysicalScale;
 
   // for the overlay
