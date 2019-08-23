@@ -471,8 +471,6 @@ protected:
   int TextureInternalFormats[VTK_UNICODE_STRING][3][5];
   void InitializeTextureInternalFormats();
 
-  std::map<const vtkTextureObject *, int> TextureResourceIds;
-
   virtual int ReadPixels(const vtkRecti& rect, int front, int glFormat, int glType, void* data, int right=0);
 
   /**
@@ -533,12 +531,6 @@ protected:
   virtual void ReleaseGraphicsResources(vtkRenderWindow *);
 
   /**
-   * Set the texture unit manager.
-   */
-  void SetTextureUnitManager(vtkTextureUnitManager *textureUnitManager);
-
-
-  /**
    * Query and save OpenGL state
    */
   void SaveGLState();
@@ -564,8 +556,6 @@ protected:
   int OwnContext;
 
   vtkTimeStamp ContextCreationTime;
-
-  vtkTextureUnitManager *TextureUnitManager;
 
   vtkTextureObject *DrawPixelsTextureObject;
 
