@@ -17,6 +17,7 @@
 #include "vtkCellArray.h"
 #include "vtkCellData.h"
 #include "vtkCharArray.h"
+#include "vtkDijkstraGraphGeodesicPath.h"
 #include "vtkExecutive.h"
 #include "vtkFloatArray.h"
 #include "vtkGarbageCollector.h"
@@ -26,6 +27,7 @@
 #include "vtkMath.h"
 #include "vtkObjectFactory.h"
 #include "vtkPointData.h"
+#include "vtkPointLocator.h"
 #include "vtkPoints.h"
 #include "vtkPolyData.h"
 #include "vtkPolygon.h"
@@ -42,6 +44,7 @@ vtkSelectPolyData::vtkSelectPolyData()
 {
   this->GenerateSelectionScalars = 0;
   this->InsideOut = 0;
+  this->DijkstraEdgeSearch = 0;
   this->Loop = nullptr;
   this->SelectionMode = VTK_INSIDE_SMALLEST_REGION;
   this->ClosestPoint[0] = this->ClosestPoint[1] = this->ClosestPoint[2] = 0.0;
@@ -197,83 +200,122 @@ int vtkSelectPolyData::RequestData(vtkInformation* vtkNotUsed(request),
     loopIds->SetId(i, closest);
   } // for all loop points
 
-  // Now that we've got point ids, we build the loop. Start with the
-  // first two points in the loop (which define a line), and find the
-  // mesh edge that is directed along the line, and whose
-  // end point is closest to the line. Continue until loop closes in on
-  // itself.
   edgeIds = vtkIdList::New();
   edgeIds->Allocate(numLoopPts * 10, 1000);
   neighbors = vtkIdList::New();
   neighbors->Allocate(10000);
   edgeIds->InsertNextId(loopIds->GetId(0));
 
-  for (i = 0; i < numLoopPts; i++)
+  if (!this->DijkstraEdgeSearch)
   {
-    currentId = loopIds->GetId(i);
-    nextId = loopIds->GetId((i + 1) % numLoopPts);
-    prevId = (-1);
-    inPts->GetPoint(currentId, x);
-    inPts->GetPoint(currentId, x0);
-    inPts->GetPoint(nextId, x1);
-    for (j = 0; j < 3; j++)
-    {
-      vec[j] = x1[j] - x0[j];
-    }
+    // Now that we've got point ids, we build the loop. Start with the
+    // first two points in the loop (which define a line), and find the
+    // mesh edge that is directed along the line, and whose
+    // end point is closest to the line. Continue until loop closes in on
+    // itself.
 
-    // track edge
-    for (id = currentId; id != nextId;)
+    for (i = 0; i < numLoopPts; i++)
     {
-      this->GetPointNeighbors(id, neighbors); // points connected by edge
-      numNei = neighbors->GetNumberOfIds();
-      closest = -1;
-      closestDist2 = VTK_DOUBLE_MAX;
-      for (j = 0; j < numNei; j++)
+      currentId = loopIds->GetId(i);
+      nextId = loopIds->GetId((i + 1) % numLoopPts);
+      prevId = (-1);
+      inPts->GetPoint(currentId, x);
+      inPts->GetPoint(currentId, x0);
+      inPts->GetPoint(nextId, x1);
+      for (j = 0; j < 3; j++)
       {
-        neiId = neighbors->GetId(j);
-        if (neiId == nextId)
+        vec[j] = x1[j] - x0[j];
+      }
+
+      // track edge
+      for (id = currentId; id != nextId;)
+      {
+        this->GetPointNeighbors(id, neighbors); // points connected by edge
+        numNei = neighbors->GetNumberOfIds();
+        closest = -1;
+        closestDist2 = VTK_DOUBLE_MAX;
+        for (j = 0; j < numNei; j++)
         {
-          closest = neiId;
-          break;
+          neiId = neighbors->GetId(j);
+          if (neiId == nextId)
+          {
+            closest = neiId;
+            break;
+          }
+          else
+          {
+            inPts->GetPoint(neiId, neiX);
+            for (k = 0; k < 3; k++)
+            {
+              dir[k] = neiX[k] - x[k];
+            }
+            if (neiId != prevId && vtkMath::Dot(dir, vec) > 0.0) // candidate
+            {
+              dist2 = vtkLine::DistanceToLine(neiX, x0, x1);
+              if (dist2 < closestDist2)
+              {
+                closest = neiId;
+                closestDist2 = dist2;
+              }
+            } // in direction of line
+          }
+        } // for all neighbors
+
+        if (closest < 0)
+        {
+          vtkErrorMacro(<< "Can't follow edge");
+          triMesh->UnRegister(this);
+          this->Mesh->Delete();
+          neighbors->Delete();
+          edgeIds->Delete();
+          loopIds->Delete();
+          return 1;
         }
         else
         {
-          inPts->GetPoint(neiId, neiX);
-          for (k = 0; k < 3; k++)
-          {
-            dir[k] = neiX[k] - x[k];
-          }
-          if (neiId != prevId && vtkMath::Dot(dir, vec) > 0.0) // candidate
-          {
-            dist2 = vtkLine::DistanceToLine(neiX, x0, x1);
-            if (dist2 < closestDist2)
-            {
-              closest = neiId;
-              closestDist2 = dist2;
-            }
-          } // in direction of line
+          edgeIds->InsertNextId(closest);
+          prevId = id;
+          id = closest;
+          inPts->GetPoint(id, x);
         }
-      } // for all neighbors
+      } // for tracking edge
+    }   // for all edges of loop
+  }
+  else
+  {
+    vtkNew<vtkDijkstraGraphGeodesicPath> edgesFilter;
+    edgesFilter->StopWhenEndReachedOn();
+    edgesFilter->SetInputData(triMesh);
 
-      if (closest < 0)
+    vtkNew<vtkPointLocator> pointLocator;
+    pointLocator->SetDataSet(triMesh);
+
+    for (i = 0; i < numLoopPts; i++)
+    {
+      currentId = loopIds->GetId(i);
+      nextId = loopIds->GetId((i + 1) % numLoopPts);
+      edgesFilter->SetStartVertex(currentId);
+      edgesFilter->SetEndVertex(nextId);
+      edgesFilter->Update();
+      vtkPolyData* outputPath = edgesFilter->GetOutput();
+      inPts->GetPoint(currentId, x0);
+      for (int j = outputPath->GetNumberOfPoints()-1; j >= 0 ; --j)
       {
-        vtkErrorMacro(<< "Can't follow edge");
-        triMesh->UnRegister(this);
-        this->Mesh->Delete();
-        neighbors->Delete();
-        edgeIds->Delete();
-        loopIds->Delete();
-        return 1;
+        outputPath->GetPoint(j, x);
+        dist2 = vtkMath::Distance2BetweenPoints(x, x0);
+        if (dist2 > 0.0)
+        {
+          // Find point ID to add in the input mesh to remember the next edge point
+          edgeIds->InsertNextId(pointLocator->FindClosestPoint(x));
+          for (int k = 0; k < 3; ++k)
+          {
+            // Remember last added point so that it does not get added twice
+            x0[k] = x[k];
+          }
+        }
       }
-      else
-      {
-        edgeIds->InsertNextId(closest);
-        prevId = id;
-        id = closest;
-        inPts->GetPoint(id, x);
-      }
-    } // for tracking edge
-  }   // for all edges of loop
+    }
+  }
 
   // mainly for debugging
   numMeshLoopPts = edgeIds->GetNumberOfIds();

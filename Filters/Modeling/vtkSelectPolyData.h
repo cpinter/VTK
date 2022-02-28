@@ -127,6 +127,17 @@ public:
 
   ///@{
   /**
+   * Set/Get the DijkstraEdgeSearch flag. When on, the edges following
+   * the loop on the input mesh is done using the Dijkstra algorithm
+   * instead of the default pairwise direction vector based method.
+   */
+  vtkSetMacro(DijkstraEdgeSearch, vtkTypeBool);
+  vtkGetMacro(DijkstraEdgeSearch, vtkTypeBool);
+  vtkBooleanMacro(DijkstraEdgeSearch, vtkTypeBool);
+  ///@}
+
+  ///@{
+  /**
    * Set/Get the array of point coordinates defining the loop. There must
    * be at least three points used to define a loop.
    */
@@ -189,6 +200,7 @@ protected:
 
   vtkTypeBool GenerateSelectionScalars;
   vtkTypeBool InsideOut;
+  vtkTypeBool DijkstraEdgeSearch;
   vtkPoints* Loop;
   int SelectionMode;
   double ClosestPoint[3];
